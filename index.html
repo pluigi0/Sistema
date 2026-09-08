@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!--
+  Política de seguridad de contenido.
+  - script-src sin dominios externos: aunque alguien inyecte <script src="...">, no carga.
+  - object-src 'none': nada de plugins ni embeds.
+  - base-uri 'none': nadie puede reescribir la base de las URLs relativas.
+  - form-action 'none': ningún formulario puede enviar datos a ningún lado.
+  Al desplegarlo: mueve el JS a app.js y quita 'unsafe-inline'.
+-->
+<meta http-equiv="Content-Security-Policy"
+      content="script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Panel</title>
+<style>
+  :root{
+    --bg:#0E1A1F;
+    --panel:#142228;
+    --panel-2:#18292F;
+    --line:#243940;
+    --text:#E7EEEB;
+    --dim:#8CA3A9;
+    --dimmer:#5D757C;
+    --warn:#E8A33D;
+    --focus:#7DD3E0;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:28px 20px 80px}
+
+  /* cabecera */
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .brand{font-size:19px;font-weight:600;letter-spacing:-0.01em;margin:0}
+  .today{color:var(--dim);font-size:14px;margin:2px 0 0}
+  .tools{display:flex;gap:8px}
+
+  /* lo más olvidado */
+  .stale{
+    margin:26px 0 34px;padding:22px 24px;
+    background:var(--panel);border:1px solid var(--line);
+    border-left:4px solid var(--warn);border-radius:var(--radius);
+    display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  }
+  .stale-label{color:var(--dim);font-size:13px;margin:0 0 6px}
+  .stale-name{font-size:30px;font-weight:600;letter-spacing:-0.02em;margin:0;line-height:1.1}
+  .stale-days{font-size:15px;color:var(--warn);margin:8px 0 0}
+  .stale.calm{border-left-color:var(--focus)}
+  .stale.calm .stale-days{color:var(--focus)}
+
+  /* secciones */
+  .sec-head{display:flex;align-items:center;gap:14px;margin:34px 0 14px}
+  .sec-head h2{font-size:15px;font-weight:600;margin:0}
+  .sec-head .rule{flex:1;height:1px;background:var(--line)}
+  .sec-head .count{color:var(--dimmer);font-size:13px}
+
+  /* tarjetas */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 16px 14px;position:relative;overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--hue,#6FA8FF)}
+  .card-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .card-name{
+    font-size:17px;font-weight:600;margin:0;letter-spacing:-0.01em;
+    background:none;border:0;color:var(--text);padding:0;cursor:pointer;
+    text-align:left;font-family:inherit;
+  }
+  .card-name:hover{color:var(--hue,#6FA8FF)}
+  .age{font-size:13px;color:var(--dim);white-space:nowrap}
+  .age.hot{color:var(--warn)}
+  .next{
+    margin:12px 0 0;font-size:14px;min-height:42px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .next.empty{color:var(--dimmer);font-style:italic}
+  .card-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px}
+
+  /* tira de días */
+  .strip{display:flex;gap:3px;align-items:flex-end}
+  .tick{width:6px;height:16px;border-radius:2px;background:#20343A}
+  .tick.on{background:var(--hue,#6FA8FF)}
+  .tick.today{outline:1px solid var(--dimmer);outline-offset:1px}
+  .strip.lg .tick{width:8px;height:22px}
+
+  /* filas */
+  .rows{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .row{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--hue,#6FA8FF);flex:none}
+  .row-name{
+    flex:1;min-width:0;font-size:15px;font-weight:500;text-align:left;
+    background:none;border:0;color:var(--text);padding:0;cursor:pointer;font-family:inherit;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .row-name:hover{color:var(--hue,#6FA8FF)}
+  .row .age{font-size:12px}
+
+  /* botones */
+  button{font-family:inherit}
+  .btn{
+    background:transparent;border:1px solid var(--line);color:var(--dim);
+    padding:6px 11px;border-radius:7px;font-size:13px;cursor:pointer;
+  }
+  .btn:hover{border-color:var(--dimmer);color:var(--text)}
+  .btn.on{border-color:var(--hue,#6FA8FF);color:var(--hue,#6FA8FF)}
+  .btn.primary{background:var(--focus);border-color:var(--focus);color:#08171B;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.08);color:#08171B}
+  .btn.quiet{border-color:transparent}
+  .btn.danger:hover{border-color:#C85A5A;color:#E88A8A}
+  .btn.tiny{padding:3px 8px;font-size:12px}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+
+  /* detalle */
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .detail-head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .detail-title{font-size:26px;font-weight:600;letter-spacing:-0.02em;margin:0}
+  .detail-sub{color:var(--dim);font-size:14px;margin:0 0 22px}
+  .field{margin:0 0 18px}
+  .field label{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+  textarea,input[type=text],select{
+    width:100%;background:var(--bg);color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+    font-family:inherit;font-size:15px;line-height:1.45;resize:vertical;
+  }
+  textarea:focus,input[type=text]:focus,select:focus{border-color:var(--focus);outline:none}
+  .sub-block{border-top:1px solid var(--line);padding-top:18px;margin-top:22px}
+  .sub-block h3{font-size:15px;font-weight:600;margin:0 0 12px}
+  .log-add{display:flex;gap:8px;align-items:flex-start}
+  .log-add textarea{min-height:44px}
+  .log{list-style:none;margin:16px 0 0;padding:0}
+  .log li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+  .log-date{color:var(--dimmer);font-size:12px;flex:none;width:70px;padding-top:2px}
+  .log-text{flex:1;font-size:14px;white-space:pre-wrap;word-break:break-word;margin:0}
+  .empty-note{color:var(--dimmer);font-size:14px;margin:12px 0 0}
+  .metrics{display:flex;gap:28px;margin:0 0 18px}
+  .metric b{display:block;font-size:24px;font-weight:600;letter-spacing:-0.02em}
+  .metric span{font-size:12px;color:var(--dim)}
+
+  /* editor de temas */
+  .t-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .t-row .swatch{width:12px;height:12px;border-radius:3px;background:var(--hue,#6FA8FF);flex:none}
+  .t-row input[type=text]{flex:1;min-width:150px;padding:6px 10px;font-size:14px}
+  .t-row select{width:auto;padding:6px 10px;font-size:13px}
+  .moves{display:flex;gap:4px}
+  .palette{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 0}
+  .chip{width:22px;height:22px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0;background:var(--hue)}
+  .chip[aria-pressed="true"]{border-color:var(--text)}
+  .add-form{border-top:1px solid var(--line);margin-top:20px;padding-top:18px}
+  .add-form h3{font-size:15px;font-weight:600;margin:0 0 12px}
+  .add-form .line{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .add-form input[type=text]{flex:1;min-width:170px;padding:8px 10px;font-size:14px}
+
+  /* respaldo */
+  .backup textarea{min-height:150px;font-size:13px}
+  .backup .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  [hidden]{display:none !important}
+
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:10px 16px;border-radius:8px;font-size:14px;
+    opacity:0;pointer-events:none;transition:opacity .18s;
+  }
+  .toast.show{opacity:1}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+  @media (max-width:640px){
+    .wrap{padding:20px 14px 60px}
+    .grid{grid-template-columns:1fr}
+    .stale-name{font-size:25px}
+    .log-date{width:56px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1 class="brand">Panel</h1>
+      <p class="today" id="todayLine"></p>
+    </div>
+    <div class="tools">
+      <button class="btn" id="btnTopics" type="button">Temas</button>
+      <button class="btn" id="btnBackup" type="button">Respaldo</button>
+    </div>
+  </header>
+
+  <!-- ===== tablero ===== -->
+  <main id="viewBoard">
+    <section class="stale" id="staleBox" hidden>
+      <div>
+        <p class="stale-label">Lo que llevas más tiempo sin tocar</p>
+        <h2 class="stale-name" id="staleName"></h2>
+        <p class="stale-days" id="staleDays"></p>
+      </div>
+      <button class="btn primary" id="staleOpen" type="button">Abrir</button>
+    </section>
+
+    <div class="sec-head">
+      <h2>Principales</h2><span class="rule"></span><span class="count" id="countMain"></span>
+    </div>
+    <div class="grid" id="gridMain"></div>
+    <p class="empty-note" id="emptyMain" hidden>No tienes temas principales. Añade uno desde Temas.</p>
+
+    <div class="sec-head">
+      <h2>Segundo plano</h2><span class="rule"></span><span class="count" id="countSecond"></span>
+    </div>
+    <div class="rows" id="rowsSecond"></div>
+    <p class="empty-note" id="emptySecond" hidden>Nada en segundo plano por ahora.</p>
+  </main>
+
+  <!-- ===== editor de temas ===== -->
+  <main id="viewTopics" hidden>
+    <div class="detail">
+      <div class="detail-head"><button class="btn quiet" id="btnBackTopics" type="button">← Volver</button></div>
+      <h2 class="detail-title">Temas</h2>
+      <p class="detail-sub">Cambia nombre, color, prioridad u orden. Todo se guarda al instante.</p>
+      <div id="editorList"></div>
+
+      <div class="add-form">
+        <h3>Añadir un tema</h3>
+        <div class="line">
+          <input type="text" id="newName" maxlength="40" placeholder="Nombre del tema" aria-label="Nombre del tema nuevo">
+          <select id="newTier" aria-label="Prioridad del tema nuevo">
+            <option value="1">Principal</option>
+            <option value="2" selected>Segundo plano</option>
+          </select>
+          <button class="btn primary" id="btnAddTopic" type="button">Añadir</button>
+        </div>
+        <div class="palette" id="newPalette" role="group" aria-label="Color del tema nuevo"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== detalle ===== -->
+  <main id="viewDetail" hidden>
+    <div class="detail">
+      <div class="detail-head"><button class="btn quiet" id="btnBack" type="button">← Volver</button></div>
+      <h2 class="detail-title" id="dTitle"></h2>
+      <p class="detail-sub" id="dSub"></p>
+
+      <div class="metrics">
+        <div class="metric"><b id="mWeek">0</b><span>últimos 7 días</span></div>
+        <div class="metric"><b id="mMonth">0</b><span>últimos 30 días</span></div>
+        <div class="metric"><b id="mAge">—</b><span>días sin tocar</span></div>
+      </div>
+      <div class="strip lg" id="dStrip" aria-label="Actividad de los últimos 30 días"></div>
+      <div style="margin-top:16px"><button class="btn" id="btnMark" type="button">Marcar hoy</button></div>
+
+      <div class="sub-block">
+        <div class="field">
+          <label for="dGoal">Objetivo actual</label>
+          <textarea id="dGoal" rows="2" maxlength="300" placeholder="¿Qué quieres lograr aquí en las próximas semanas?"></textarea>
+        </div>
+        <div class="field">
+          <label for="dNext">Siguiente acción concreta</label>
+          <textarea id="dNext" rows="2" maxlength="200" placeholder="La acción más pequeña que puedes hacer mañana"></textarea>
+        </div>
+        <button class="btn primary" id="btnSaveFields" type="button">Guardar cambios</button>
+      </div>
+
+      <div class="sub-block">
+        <h3>Bitácora</h3>
+        <div class="log-add">
+          <textarea id="logInput" rows="1" maxlength="1000" placeholder="Qué avanzaste, qué aprendiste, qué falló"></textarea>
+          <button class="btn" id="btnAddLog" type="button">Añadir</button>
+        </div>
+        <ul class="log" id="logList"></ul>
+        <p class="empty-note" id="logEmpty" hidden>Todavía no hay notas en este tema.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== respaldo ===== -->
+  <main id="viewBackup" class="backup" hidden>
+    <div class="detail">
+      <div class="detail-head"><button class="btn quiet" id="btnBackBackup" type="button">← Volver</button></div>
+      <h2 class="detail-title">Respaldo</h2>
+      <p class="detail-sub">Copia este texto para guardarlo aparte. Para restaurar, pega un respaldo y elige Restaurar.</p>
+      <textarea id="backupText" spellcheck="false" aria-label="Datos de respaldo en formato JSON"></textarea>
+      <div class="actions">
+        <button class="btn" id="btnCopy" type="button">Copiar</button>
+        <button class="btn danger" id="btnRestore" type="button">Restaurar desde el texto</button>
+      </div>
+    </div>
+  </main>
+
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ============================================================
+     1. CONFIGURACIÓN
+     ============================================================ */
+
+  // Lista inicial. Solo se usa la primera vez que abres la app.
+  // Después tus temas viven en el almacenamiento y se editan desde
+  // el botón "Temas", así que no hace falta volver a tocar esto.
+  const DEFAULT_TOPICS = [
+    { name: "Software / Tech",     tier: 1, hue: "#6FA8FF" },
+    { name: "Oratoria",            tier: 1, hue: "#B18BF2" },
+    { name: "Ventas",              tier: 1, hue: "#F2A03D" },
+    { name: "Storytelling",        tier: 1, hue: "#F2647C" },
+    { name: "Finanzas / Negocios", tier: 2, hue: "#55C08C" },
+    { name: "Juan",                tier: 2, hue: "#6ED6E0" },
+    { name: "Salud / Gym",         tier: 2, hue: "#A3D24C" },
+    { name: "Comida",              tier: 2, hue: "#E8C25A" },
+    { name: "Inglés",              tier: 2, hue: "#9FA8DA" }
+  ];
+
+  const PALETTE = [
+    "#6FA8FF", "#B18BF2", "#F2A03D", "#F2647C", "#55C08C", "#6ED6E0",
+    "#A3D24C", "#E8C25A", "#9FA8DA", "#E08B6F", "#79C7B0", "#C97BB0"
+  ];
+
+  const STORE_KEY = "panel-temas-v2";
+  const LIMITS = { name: 40, goal: 300, next: 200, log: 1000, entries: 300, days: 500, topics: 24 };
+
+  let state = { version: 2, topics: [] };
+  let currentId = null;
+  let newHue = PALETTE[0];
+  let saveTimer = null;
+  let toastTimer = null;
+
+  /* ============================================================
+     2. FECHAS
+     ============================================================ */
+  const pad = (n) => String(n).padStart(2, "0");
+  const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = () => dayKey(new Date());
+
+  const daysAgoKey = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return dayKey(d);
+  };
+
+  const isDayKey = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+  const daysBetween = (key) => {
+    const [y, m, d] = key.split("-").map(Number);
+    const then = new Date(y, m - 1, d, 12, 0, 0, 0);
+    const now = new Date();
+    now.setHours(12, 0, 0, 0);
+    return Math.round((now - then) / 86400000);
+  };
+
+  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const shortDate = (key) => {
+    const [, m, d] = key.split("-").map(Number);
+    return `${d} ${MESES[m - 1]}`;
+  };
+
+  /* ============================================================
+     3. DOM SEGURO
+     Nunca se usa innerHTML con datos. Todo texto entra por
+     textContent, así el navegador jamás lo interpreta como HTML.
+     ============================================================ */
+  const $ = (id) => document.getElementById(id);
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  };
+
+  const clear = (node) => {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  };
+
+  const toast = (msg) => {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2000);
+  };
+
+  /* ============================================================
+     4. VALIDACIÓN
+     Todo lo que entra —guardado previo o respaldo pegado— pasa
+     por aquí: tipos forzados, longitudes recortadas, colores
+     comprobados con un patrón, claves desconocidas descartadas.
+     ============================================================ */
+  const safeText = (v, max) =>
+    typeof v === "string" ? v.replace(/\u0000/g, "").trim().slice(0, max) : "";
+
+  // Sin esto, un "color" como "red;background:url(evil)" se colaría
+  // dentro de un style. Solo se aceptan seis dígitos hexadecimales.
+  const isHex = (v) => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+  const safeHue = (v) => (isHex(v) ? v : PALETTE[0]);
+
+  const makeId = () => {
+    if (crypto?.randomUUID) return crypto.randomUUID();
+    const a = new Uint32Array(2);
+    crypto.getRandomValues(a);
+    return a[0].toString(36) + a[1].toString(36);
+  };
+
+  const seedState = () => ({
+    version: 2,
+    topics: DEFAULT_TOPICS.map(({ name, tier, hue }) => ({
+      id: makeId(), name, tier, hue, goal: "", next: "", days: [], log: []
+    }))
+  });
+
+  const sanitizeTopic = (raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const name = safeText(raw.name, LIMITS.name);
+    if (!name) return null;
+
+    const days = [];
+    if (Array.isArray(raw.days)) {
+      const seen = new Set();
+      for (const d of raw.days) {
+        if (isDayKey(d) && !seen.has(d)) { seen.add(d); days.push(d); }
+      }
+      days.sort();
+    }
+
+    const log = [];
+    if (Array.isArray(raw.log)) {
+      for (const e of raw.log.slice(-LIMITS.entries)) {
+        if (!e || typeof e !== "object" || Array.isArray(e)) continue;
+        const text = safeText(e.text, LIMITS.log);
+        if (!text) continue;
+        log.push({
+          id: safeText(e.id, 40) || makeId(),
+          date: isDayKey(e.date) ? e.date : today(),
+          text
+        });
+      }
+    }
+
+    return {
+      id: safeText(raw.id, 40) || makeId(),
+      name,
+      tier: raw.tier === 1 ? 1 : 2,
+      hue: safeHue(raw.hue),
+      goal: safeText(raw.goal, LIMITS.goal),
+      next: safeText(raw.next, LIMITS.next),
+      days: days.slice(-LIMITS.days),
+      log
+    };
+  };
+
+  const sanitizeState = (raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return seedState();
+    if (!Array.isArray(raw.topics)) return seedState();
+
+    const topics = [];
+    const usedIds = new Set();
+    for (const t of raw.topics.slice(0, LIMITS.topics)) {
+      const clean = sanitizeTopic(t);
+      if (!clean) continue;
+      while (usedIds.has(clean.id)) clean.id = makeId();
+      usedIds.add(clean.id);
+      topics.push(clean);
+    }
+    return topics.length ? { version: 2, topics } : seedState();
+  };
+
+  /* ============================================================
+     5. PERSISTENCIA
+     ============================================================ */
+  let mem = null;
+
+  const load = async () => {
+    if (typeof window.storage?.get === "function") {
+      try {
+        const r = await window.storage.get(STORE_KEY);
+        return r?.value ? JSON.parse(r.value) : null;
+      } catch { return null; }
+    }
+    try {
+      // Fuera de este entorno (tu propio hosting) se usa
+      // el almacenamiento local del navegador.
+      const raw = localStorage.getItem(STORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return mem; }
+  };
+
+  const persist = async () => {
+    const payload = JSON.stringify(state);
+    if (typeof window.storage?.set === "function") {
+      try { await window.storage.set(STORE_KEY, payload); }
+      catch { toast("No se pudo guardar. Usa Respaldo para no perder nada."); }
+      return;
+    }
+    try { localStorage.setItem(STORE_KEY, payload); }
+    catch { mem = JSON.parse(payload); }
+  };
+
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, 250);
+  };
+
+  /* ============================================================
+     6. CÁLCULOS
+     ============================================================ */
+  const findTopic = (id) => state.topics.find((t) => t.id === id) ?? null;
+  const byTier = (tier) => state.topics.filter((t) => t.tier === tier);
+  const lastDay = (t) => (t.days.length ? t.days[t.days.length - 1] : null);
+  const age = (t) => (lastDay(t) === null ? null : daysBetween(lastDay(t)));
+
+  const countSince = (t, n) => {
+    const limit = daysAgoKey(n - 1);
+    return t.days.filter((d) => d >= limit).length;
+  };
+
+  const ageLabel = (a) => {
+    if (a === null) return "sin registro";
+    if (a === 0) return "hoy";
+    if (a === 1) return "ayer";
+    return `hace ${a} d`;
+  };
+
+  const toggleToday = (id) => {
+    const t = findTopic(id);
+    if (!t) return;
+    const key = today();
+    const i = t.days.indexOf(key);
+    if (i === -1) { t.days.push(key); t.days.sort(); } else { t.days.splice(i, 1); }
+    save();
+  };
+
+  /* ============================================================
+     7. PIEZAS DE INTERFAZ
+     ============================================================ */
+  const buildStrip = (t, hue, days, big = false) => {
+    const strip = el("div", big ? "strip lg" : "strip");
+    strip.style.setProperty("--hue", hue);
+    const set = new Set(t.days);
+    for (let i = days - 1; i >= 0; i--) {
+      const key = daysAgoKey(i);
+      const tick = el("div", `tick${set.has(key) ? " on" : ""}${i === 0 ? " today" : ""}`);
+      tick.title = shortDate(key);
+      strip.appendChild(tick);
+    }
+    return strip;
+  };
+
+  const markButton = (t, onDone) => {
+    const done = t.days.includes(today());
+    const btn = el("button", `btn${done ? " on" : ""}`, done ? "Hecho hoy" : "Marcar hoy");
+    btn.type = "button";
+    btn.style.setProperty("--hue", t.hue);
+    btn.addEventListener("click", () => { toggleToday(t.id); onDone(); });
+    return btn;
+  };
+
+  const nameButton = (t, className) => {
+    const btn = el("button", className, t.name);
+    btn.type = "button";
+    btn.addEventListener("click", () => openDetail(t.id));
+    return btn;
+  };
+
+  /* ============================================================
+     8. TABLERO
+     ============================================================ */
+  const renderBoard = () => {
+    $("todayLine").textContent = new Date().toLocaleDateString("es-PA", {
+      weekday: "long", day: "numeric", month: "long"
+    });
+
+    renderStale();
+
+    const main = byTier(1);
+    const second = byTier(2);
+    $("countMain").textContent = String(main.length);
+    $("countSecond").textContent = String(second.length);
+    $("emptyMain").hidden = main.length > 0;
+    $("emptySecond").hidden = second.length > 0;
+
+    const grid = $("gridMain");
+    clear(grid);
+    main.forEach((t) => grid.appendChild(mainCard(t)));
+
+    const rows = $("rowsSecond");
+    clear(rows);
+    second.forEach((t) => rows.appendChild(secondRow(t)));
+  };
+
+  const renderStale = () => {
+    const box = $("staleBox");
+    const main = byTier(1);
+    if (!main.length) { box.hidden = true; return; }
+
+    let worst = null;
+    let worstAge = -1;
+    for (const t of main) {
+      const a = age(t);
+      const val = a === null ? 9999 : a;
+      if (val > worstAge) { worstAge = val; worst = t; }
+    }
+
+    box.hidden = false;
+    if (worstAge <= 0) {
+      box.classList.add("calm");
+      $("staleName").textContent = "Todo al día";
+      $("staleDays").textContent = "Tocaste todos tus temas principales hoy.";
+      $("staleOpen").hidden = true;
+      return;
+    }
+
+    box.classList.remove("calm");
+    $("staleOpen").hidden = false;
+    $("staleName").textContent = worst.name;
+    $("staleDays").textContent = worstAge === 9999
+      ? "Sin ningún registro todavía"
+      : `${worstAge} ${worstAge === 1 ? "día" : "días"} sin tocarlo`;
+    $("staleOpen").dataset.id = worst.id;
+  };
+
+  const mainCard = (t) => {
+    const card = el("article", "card");
+    card.style.setProperty("--hue", t.hue);
+
+    const top = el("div", "card-top");
+    const a = age(t);
+    top.append(
+      nameButton(t, "card-name"),
+      el("span", `age${a === null || a >= 4 ? " hot" : ""}`, ageLabel(a))
+    );
+
+    const next = el("p", `next${t.next ? "" : " empty"}`, t.next || "Sin siguiente acción definida");
+
+    const foot = el("div", "card-foot");
+    foot.append(buildStrip(t, t.hue, 14), markButton(t, renderBoard));
+
+    card.append(top, next, foot);
+    return card;
+  };
+
+  const secondRow = (t) => {
+    const row = el("div", "row");
+    row.style.setProperty("--hue", t.hue);
+    const a = age(t);
+    row.append(
+      el("span", "dot"),
+      nameButton(t, "row-name"),
+      el("span", `age${a === null || a >= 7 ? " hot" : ""}`, ageLabel(a)),
+      buildStrip(t, t.hue, 14),
+      markButton(t, renderBoard)
+    );
+    return row;
+  };
+
+  /* ============================================================
+     9. EDITOR DE TEMAS
+     ============================================================ */
+  const paletteChips = (selected, onPick) => {
+    const wrap = el("div", "palette");
+    PALETTE.forEach((hue) => {
+      const chip = el("button", "chip");
+      chip.type = "button";
+      chip.style.setProperty("--hue", hue);
+      chip.setAttribute("aria-pressed", hue === selected ? "true" : "false");
+      chip.setAttribute("aria-label", `Color ${hue}`);
+      chip.addEventListener("click", () => onPick(hue));
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  };
+
+  const moveTopic = (id, dir) => {
+    const i = state.topics.findIndex((t) => t.id === id);
+    if (i === -1) return;
+    const { tier } = state.topics[i];
+    // Intercambia con el vecino más cercano de la misma prioridad:
+    // el tablero agrupa por prioridad, así que saltar de grupo
+    // no produciría ningún cambio visible.
+    let j = i + dir;
+    while (j >= 0 && j < state.topics.length && state.topics[j].tier !== tier) j += dir;
+    if (j < 0 || j >= state.topics.length) return;
+    [state.topics[i], state.topics[j]] = [state.topics[j], state.topics[i]];
+    save();
+    renderTopics();
+  };
+
+  const removeTopic = (id) => {
+    const t = findTopic(id);
+    if (!t) return;
+    const n = t.log.length;
+    const warn = n
+      ? `Se borrarán también ${n} ${n === 1 ? "nota" : "notas"} y todo su historial.`
+      : "Se borrará todo su historial.";
+    if (!confirm(`¿Quitar "${t.name}"? ${warn} Esto no se puede deshacer.`)) return;
+    state.topics = state.topics.filter((x) => x.id !== id);
+    persist();
+    renderTopics();
+    toast("Tema eliminado");
+  };
+
+  const topicEditorRow = (t) => {
+    const row = el("div", "t-row");
+    row.style.setProperty("--hue", t.hue);
+    row.appendChild(el("span", "swatch"));
+
+    const name = document.createElement("input");
+    name.type = "text";
+    name.value = t.name;
+    name.maxLength = LIMITS.name;
+    name.setAttribute("aria-label", `Nombre de ${t.name}`);
+    name.addEventListener("change", () => {
+      const clean = safeText(name.value, LIMITS.name);
+      if (!clean) { name.value = t.name; toast("El nombre no puede quedar vacío"); return; }
+      t.name = clean;
+      name.value = clean;
+      save();
+      toast("Nombre actualizado");
+    });
+    row.appendChild(name);
+
+    const tier = document.createElement("select");
+    tier.setAttribute("aria-label", `Prioridad de ${t.name}`);
+    [["1", "Principal"], ["2", "Segundo plano"]].forEach(([value, label]) => {
+      const opt = el("option", null, label);
+      opt.value = value;
+      if (String(t.tier) === value) opt.selected = true;
+      tier.appendChild(opt);
+    });
+    tier.addEventListener("change", () => {
+      t.tier = tier.value === "1" ? 1 : 2;
+      save();
+      renderTopics();
+    });
+    row.appendChild(tier);
+
+    const moves = el("div", "moves");
+    [["↑", -1], ["↓", 1]].forEach(([label, dir]) => {
+      const b = el("button", "btn tiny", label);
+      b.type = "button";
+      b.setAttribute("aria-label", `Mover ${t.name} ${dir === -1 ? "arriba" : "abajo"}`);
+      b.addEventListener("click", () => moveTopic(t.id, dir));
+      moves.appendChild(b);
+    });
+    row.appendChild(moves);
+
+    const del = el("button", "btn tiny danger", "Quitar");
+    del.type = "button";
+    del.addEventListener("click", () => removeTopic(t.id));
+    row.appendChild(del);
+
+    row.appendChild(paletteChips(t.hue, (hue) => {
+      t.hue = safeHue(hue);
+      save();
+      renderTopics();
+    }));
+
+    return row;
+  };
+
+  const renderTopics = () => {
+    const list = $("editorList");
+    clear(list);
+
+    if (!state.topics.length) {
+      list.appendChild(el("p", "empty-note", "No hay temas todavía. Añade el primero abajo."));
+    } else {
+      state.topics.forEach((t) => list.appendChild(topicEditorRow(t)));
+    }
+
+    const pal = $("newPalette");
+    clear(pal);
+    const chips = paletteChips(newHue, (hue) => { newHue = hue; renderTopics(); });
+    while (chips.firstChild) pal.appendChild(chips.firstChild);
+  };
+
+  const addTopic = () => {
+    const input = $("newName");
+    const name = safeText(input.value, LIMITS.name);
+    if (!name) { toast("Escribe un nombre para el tema"); input.focus(); return; }
+    if (state.topics.length >= LIMITS.topics) { toast(`El máximo es ${LIMITS.topics} temas`); return; }
+
+    state.topics.push({
+      id: makeId(),
+      name,
+      tier: $("newTier").value === "1" ? 1 : 2,
+      hue: safeHue(newHue),
+      goal: "", next: "", days: [], log: []
+    });
+    input.value = "";
+    save();
+    renderTopics();
+    toast(`"${name}" añadido`);
+  };
+
+  /* ============================================================
+     10. DETALLE
+     ============================================================ */
+  const openDetail = (id) => {
+    if (!findTopic(id)) return;
+    currentId = id;
+    showView("viewDetail");
+    renderDetail();
+  };
+
+  const renderDetail = () => {
+    const t = findTopic(currentId);
+    if (!t) { goBoard(); return; }
+
+    $("dTitle").textContent = t.name;
+    $("dTitle").style.color = t.hue;
+    $("dSub").textContent = t.tier === 1 ? "Tema principal" : "Segundo plano";
+
+    $("mWeek").textContent = String(countSince(t, 7));
+    $("mMonth").textContent = String(countSince(t, 30));
+    const a = age(t);
+    $("mAge").textContent = a === null ? "—" : String(a);
+
+    const holder = $("dStrip");
+    clear(holder);
+    holder.style.setProperty("--hue", t.hue);
+    const strip = buildStrip(t, t.hue, 30, true);
+    while (strip.firstChild) holder.appendChild(strip.firstChild);
+
+    const done = t.days.includes(today());
+    const mark = $("btnMark");
+    mark.textContent = done ? "Hecho hoy" : "Marcar hoy";
+    mark.className = `btn${done ? " on" : ""}`;
+    mark.style.setProperty("--hue", t.hue);
+
+    $("dGoal").value = t.goal;
+    $("dNext").value = t.next;
+    renderLog();
+  };
+
+  const renderLog = () => {
+    const t = findTopic(currentId);
+    if (!t) return;
+
+    const list = $("logList");
+    clear(list);
+    const entries = [...t.log].reverse();
+    $("logEmpty").hidden = entries.length > 0;
+
+    entries.forEach((entry) => {
+      const li = el("li");
+      li.append(
+        el("span", "log-date", shortDate(entry.date)),
+        el("p", "log-text", entry.text)
+      );
+      const del = el("button", "btn quiet danger", "Borrar");
+      del.type = "button";
+      del.addEventListener("click", () => {
+        if (!confirm("¿Borrar esta nota?")) return;
+        t.log = t.log.filter((e) => e.id !== entry.id);
+        save();
+        renderLog();
+      });
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+  };
+
+  const addLogEntry = () => {
+    const t = findTopic(currentId);
+    if (!t) return;
+
+    const input = $("logInput");
+    const text = safeText(input.value, LIMITS.log);
+    if (!text) { toast("Escribe algo antes de añadir"); return; }
+
+    t.log.push({ id: makeId(), date: today(), text });
+    if (t.log.length > LIMITS.entries) t.log = t.log.slice(-LIMITS.entries);
+    if (!t.days.includes(today())) { t.days.push(today()); t.days.sort(); }
+    input.value = "";
+    save();
+    renderDetail();
+  };
+
+  /* ============================================================
+     11. NAVEGACIÓN
+     ============================================================ */
+  const VIEWS = ["viewBoard", "viewTopics", "viewDetail", "viewBackup"];
+
+  const showView = (id) => {
+    VIEWS.forEach((v) => { $(v).hidden = v !== id; });
+    window.scrollTo(0, 0);
+  };
+
+  const goBoard = () => {
+    currentId = null;
+    showView("viewBoard");
+    renderBoard();
+  };
+
+  /* ============================================================
+     12. EVENTOS
+     ============================================================ */
+  $("btnTopics").addEventListener("click", () => { showView("viewTopics"); renderTopics(); });
+  $("btnBackTopics").addEventListener("click", goBoard);
+  $("btnAddTopic").addEventListener("click", addTopic);
+  $("newName").addEventListener("keydown", (e) => { if (e.key === "Enter") addTopic(); });
+
+  $("btnBack").addEventListener("click", goBoard);
+
+  $("staleOpen").addEventListener("click", (e) => {
+    const { id } = e.currentTarget.dataset;
+    if (id) openDetail(id);
+  });
+
+  $("btnMark").addEventListener("click", () => { toggleToday(currentId); renderDetail(); });
+
+  $("btnSaveFields").addEventListener("click", () => {
+    const t = findTopic(currentId);
+    if (!t) return;
+    t.goal = safeText($("dGoal").value, LIMITS.goal);
+    t.next = safeText($("dNext").value, LIMITS.next);
+    $("dGoal").value = t.goal;
+    $("dNext").value = t.next;
+    save();
+    toast("Guardado");
+  });
+
+  $("btnAddLog").addEventListener("click", addLogEntry);
+  $("logInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addLogEntry(); }
+  });
+
+  $("btnBackup").addEventListener("click", () => {
+    $("backupText").value = JSON.stringify(state, null, 2);
+    showView("viewBackup");
+  });
+  $("btnBackBackup").addEventListener("click", goBoard);
+
+  $("btnCopy").addEventListener("click", async () => {
+    const ta = $("backupText");
+    ta.select();
+    try {
+      await navigator.clipboard.writeText(ta.value);
+      toast("Copiado");
+    } catch {
+      toast("Selecciona el texto y copia manualmente");
+    }
+  });
+
+  $("btnRestore").addEventListener("click", () => {
+    let parsed;
+    try {
+      parsed = JSON.parse($("backupText").value);
+    } catch {
+      toast("Ese texto no es un respaldo válido");
+      return;
+    }
+    if (!confirm("Esto reemplaza todos tus temas y su historial. ¿Continuar?")) return;
+    state = sanitizeState(parsed);
+    persist();
+    goBoard();
+    toast("Respaldo restaurado");
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("viewBoard").hidden) goBoard();
+  });
+
+  /* ============================================================
+     13. ARRANQUE
+     ============================================================ */
+  (async () => {
+    try {
+      state = sanitizeState(await load());
+    } catch {
+      state = seedState();
+    }
+    renderBoard();
+  })();
+})();
+</script>
+</body>
+</html>
