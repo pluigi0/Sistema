@@ -5,24 +5,30 @@
      1. CONFIGURACIÓN
      ============================================================ */
 
-  // Lista inicial. Solo se usa la primera vez que abres la app.
-  // Después tus temas viven en el almacenamiento y se editan desde
-  // el botón "Temas", así que no hace falta volver a tocar esto.
+  // Temas que la app te ofrece. Los que falten se añaden solos al
+  // abrir. Si borras uno desde "Temas", no vuelve: queda anotado en
+  // state.seeded para no reaparecer nunca.
   const DEFAULT_TOPICS = [
-    { name: "Software / Tech",     tier: 1, hue: "#6FA8FF" },
-    { name: "Oratoria",            tier: 1, hue: "#B18BF2" },
-    { name: "Ventas",              tier: 1, hue: "#F2A03D" },
-    { name: "Storytelling",        tier: 1, hue: "#F2647C" },
-    { name: "Finanzas / Negocios", tier: 2, hue: "#55C08C" },
-    { name: "Juan",                tier: 2, hue: "#6ED6E0" },
-    { name: "Salud / Gym",         tier: 2, hue: "#A3D24C" },
-    { name: "Comida",              tier: 2, hue: "#E8C25A" },
-    { name: "Inglés",              tier: 2, hue: "#9FA8DA" }
+    { name: "Software / Tech",      tier: 1, hue: "#6FA8FF" },
+    { name: "Oratoria",             tier: 1, hue: "#B18BF2" },
+    { name: "Ventas",               tier: 1, hue: "#F2A03D" },
+    { name: "Storytelling",         tier: 1, hue: "#F2647C" },
+    { name: "Finanzas / Negocios",  tier: 2, hue: "#55C08C" },
+    { name: "Juan",                 tier: 2, hue: "#6ED6E0" },
+    { name: "Salud / Gym",          tier: 2, hue: "#A3D24C" },
+    { name: "Comida",               tier: 2, hue: "#E8C25A" },
+    { name: "Inglés",               tier: 2, hue: "#9FA8DA" },
+    { name: "SQL",                  tier: 2, hue: "#79C7B0" },
+    { name: "Marketing",            tier: 2, hue: "#E08B6F" },
+    { name: "Redes sociales",       tier: 2, hue: "#C97BB0" },
+    { name: "Generación de video",  tier: 2, hue: "#6ED9C0" },
+    { name: "Edición de video",     tier: 2, hue: "#C4A86E" }
   ];
 
   const PALETTE = [
     "#6FA8FF", "#B18BF2", "#F2A03D", "#F2647C", "#55C08C", "#6ED6E0",
-    "#A3D24C", "#E8C25A", "#9FA8DA", "#E08B6F", "#79C7B0", "#C97BB0"
+    "#A3D24C", "#E8C25A", "#9FA8DA", "#E08B6F", "#79C7B0", "#C97BB0",
+    "#6ED9C0", "#C4A86E", "#E86EA0"
   ];
 
   const STORE_KEY = "panel-temas-v2";
@@ -111,12 +117,34 @@
     return a[0].toString(36) + a[1].toString(36);
   };
 
+  const newTopic = ({ name, tier, hue }) => ({
+    id: makeId(), name, tier, hue: safeHue(hue),
+    goal: "", next: "", days: [], log: []
+  });
+
   const seedState = () => ({
     version: 2,
-    topics: DEFAULT_TOPICS.map(({ name, tier, hue }) => ({
-      id: makeId(), name, tier, hue, goal: "", next: "", days: [], log: []
-    }))
+    seeded: DEFAULT_TOPICS.map((t) => t.name),
+    topics: DEFAULT_TOPICS.map(newTopic)
   });
+
+  // Añade los temas de DEFAULT_TOPICS que todavía no existen y que
+  // nunca se han ofrecido antes. No toca nada de lo que ya tienes.
+  const syncDefaults = () => {
+    const present = new Set(state.topics.map((t) => t.name));
+    const seeded = new Set(state.seeded);
+    let added = 0;
+
+    for (const def of DEFAULT_TOPICS) {
+      if (present.has(def.name) || seeded.has(def.name)) continue;
+      if (state.topics.length >= LIMITS.topics) break;
+      state.topics.push(newTopic(def));
+      added += 1;
+    }
+
+    state.seeded = DEFAULT_TOPICS.map((t) => t.name);
+    return added;
+  };
 
   const sanitizeTopic = (raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -171,7 +199,13 @@
       usedIds.add(clean.id);
       topics.push(clean);
     }
-    return topics.length ? { version: 2, topics } : seedState();
+    if (!topics.length) return seedState();
+
+    const seeded = Array.isArray(raw.seeded)
+      ? raw.seeded.map((n) => safeText(n, LIMITS.name)).filter(Boolean).slice(0, 100)
+      : [];
+
+    return { version: 2, seeded, topics };
   };
 
   /* ============================================================
@@ -680,6 +714,13 @@
     } catch {
       state = seedState();
     }
+
+    const added = syncDefaults();
+    if (added) {
+      await persist();
+      toast(`${added} ${added === 1 ? "tema nuevo" : "temas nuevos"} añadidos`);
+    }
+
     renderBoard();
   })();
 })();
