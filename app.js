@@ -14,7 +14,7 @@
     { name: "Ventas",               tier: 1, hue: "#F2A03D" },
     { name: "Storytelling",         tier: 1, hue: "#F2647C" },
     { name: "Finanzas / Negocios",  tier: 2, hue: "#55C08C" },
-    { name: "Juan",                 tier: 2, hue: "#6ED6E0" },
+    { name: "Juan",                 tier: 1, hue: "#6ED6E0" },
     { name: "Salud / Gym",          tier: 2, hue: "#A3D24C" },
     { name: "Comida",               tier: 2, hue: "#E8C25A" },
     { name: "Inglés",               tier: 2, hue: "#9FA8DA" },
